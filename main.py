@@ -18,7 +18,8 @@ from src.save_manager import save_manager
 from src.scene_manager import scene_manager
 from src.scenes.chapter_select_scene import ChapterSelectScene
 from src.scenes.cutscene_scene import CutsceneScene
-from src.scenes.level_scene import LevelScene, ShadowZone
+from src.entities.guard import Guard
+from src.scenes.level_scene import LevelScene, ShadowZone, ExitZone, GROUND_Y
 from src.scenes.level_transition_scene import LevelTransitionScene
 from src.scenes.menu_scene import MenuScene
 from src.scenes.splash_scene import SplashScene
@@ -89,11 +90,22 @@ def go_to_level_gameplay(chapter_id):
         ShadowZone(400, 300, 250, 250),
         ShadowZone(1200, 300, 300, 250),
     ]
+    # Gardes de test : Guard(x_gauche, x_droite, GROUND_Y) = bornes de patrouille.
+    # Ajuste les chiffres (ou ajoute des gardes) pour changer la difficulte.
+    test_guards = [
+        Guard(700, 1000, GROUND_Y),
+        Guard(1650, 2000, GROUND_Y, start_facing_right=False),
+    ]
+    # Zone de sortie : ExitZone(x, y, largeur, hauteur). Toucher = niveau termine.
+    test_exit_zone = ExitZone(2200, GROUND_Y - 200, 180, 200)
+
     scene_manager.set_scene(LevelScene(
         level_folder=f"level{chapter_id}_baz",
         chapter_id=chapter_id,
         on_finish=lambda: _finish_level(chapter_id),
         shadow_zones=test_shadow_zones,
+        guards=test_guards,
+        exit_zone=test_exit_zone,
     ))
 
 
