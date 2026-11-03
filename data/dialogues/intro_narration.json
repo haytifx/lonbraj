@@ -1,0 +1,44 @@
+[
+    {
+        "image": "intro_1.png",
+        "speaker": null,
+        "text": "Pandan senk an, James te sèvi nan yon inite polis espesyal kont koripsyon.",
+        "voice": "intro_1.ogg"
+    },
+    {
+        "image": "intro_2.png",
+        "speaker": null,
+        "text": "Yo te twouve twòp verite ki te deranje gwo zotobre nan gouvènman an.",
+        "voice": "intro_2.ogg"
+    },
+    {
+        "image": "intro_3.png",
+        "speaker": null,
+        "text": "Yon jou, san avètisman, inite a te demantle. Dosye yo disparèt. Kòlèg yo gaye.",
+        "voice": "intro_3.ogg"
+    },
+    {
+        "image": "intro_4.png",
+        "speaker": null,
+        "text": "Depi lè sa, James ap travay poukont li — nan lonbraj, kote pesonn pa ka jwenn li.",
+        "voice": "intro_4.ogg"
+    },
+    {
+        "image": "intro_5.png",
+        "speaker": null,
+        "text": "Yon rezo yo rele Gwoup Nwa ap piye richès ak patrimwàn Ayiti san pesonn pa wè.",
+        "voice": "intro_5.ogg"
+    },
+    {
+        "image": "intro_6.png",
+        "speaker": null,
+        "text": "Marisol, yon ansyen kòlèg, te riske tout bagay pou l voye James yon dènye mesaj.",
+        "voice": "intro_6.ogg"
+    },
+    {
+        "image": "intro_7.png",
+        "speaker": "JAMES",
+        "text": "Sa se pa sèlman yon misyon ankò. Se yon règleman kont mwen dwe fè.",
+        "voice": "intro_7.ogg"
+    }
+]

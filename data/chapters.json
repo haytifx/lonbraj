@@ -1,0 +1,32 @@
+[
+    {
+        "id": 1,
+        "title": "Mache Fè",
+        "opening": "chapter1_opening.json",
+        "closing": "chapter1_closing.json"
+    },
+    {
+        "id": 2,
+        "title": "Depo Pò",
+        "opening": "chapter2_opening.json",
+        "closing": "chapter2_closing.json"
+    },
+    {
+        "id": 3,
+        "title": "Biwo Gouvènman",
+        "opening": "chapter3_opening.json",
+        "closing": "chapter3_closing.json"
+    },
+    {
+        "id": 4,
+        "title": "Katye Anwo",
+        "opening": "chapter4_opening.json",
+        "closing": "chapter4_closing.json"
+    },
+    {
+        "id": 5,
+        "title": "Katye Jeneral",
+        "opening": "chapter5_opening.json",
+        "closing": "chapter5_closing.json"
+    }
+]
