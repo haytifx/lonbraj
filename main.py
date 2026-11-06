@@ -18,6 +18,7 @@ from src.save_manager import save_manager
 from src.scene_manager import scene_manager
 from src.scenes.chapter_select_scene import ChapterSelectScene
 from src.scenes.cutscene_scene import CutsceneScene
+from src.entities.cover import Cover
 from src.entities.guard import Guard
 from src.scenes.level_scene import LevelScene, ShadowZone, ExitZone, GROUND_Y
 from src.scenes.level_transition_scene import LevelTransitionScene
@@ -99,6 +100,14 @@ def go_to_level_gameplay(chapter_id):
     # Zone de sortie : ExitZone(x, y, largeur, hauteur). Toucher = niveau termine.
     test_exit_zone = ExitZone(2200, GROUND_Y - 200, 180, 200)
 
+    # Obstacles pour se cacher : Cover(x, GROUND_Y, height=hauteur, image="fichier.png").
+    # image = PNG a fond transparent dans assets/props/ (optionnel : sans lui, une caisse grise).
+    # Accroupi (touche BAS) devant un obstacle, les gardes ne voient plus James.
+    test_covers = [
+        Cover(1080, GROUND_Y, width=150, height=90, image="cover_crate.png"),
+        Cover(1750, GROUND_Y, width=150, height=90, image="cover_crate.png"),
+    ]
+
     scene_manager.set_scene(LevelScene(
         level_folder=f"level{chapter_id}_baz",
         chapter_id=chapter_id,
@@ -106,6 +115,7 @@ def go_to_level_gameplay(chapter_id):
         shadow_zones=test_shadow_zones,
         guards=test_guards,
         exit_zone=test_exit_zone,
+        covers=test_covers,
     ))
 
 

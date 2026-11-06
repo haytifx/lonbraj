@@ -12,12 +12,18 @@ MECANIQUE DE DETECTION (infiltration) :
 - Si le joueur disparait, la jauge redescend doucement (DECAY_TIME_MS) et
   le garde reprend sa patrouille quand elle est a zero.
 - La portee de vision est reduite par le level_scene quand le joueur est
-  accroupi (sneak) ou dans une zone d'ombre (voir vision_rect(range_mult)).
+  accroupi (sneak), dans une zone d'ombre ou derriere un obstacle
+  (voir vision_rect(range_mult)).
+
+GARDE NEUTRALISE (take_down) : par une attaque dans le dos ou une balle, le
+garde tombe en avant (animation de chute) et reste a terre : il ne voit
+plus rien. facing_away_from(x) dit si un point est dans son dos.
 
 PLACEHOLDER : pas encore de sprite de garde -> un rectangle est dessine.
 Quand un spritesheet existera, il suffira de remplacer draw_body().
 """
 
+import math
 import pygame
 
 GUARD_WIDTH = 60
@@ -29,9 +35,11 @@ DEFAULT_VISION_RANGE = 320   # pixels devant le garde
 
 DETECT_TIME_MS = 900         # temps pour etre repere en restant visible
 DECAY_TIME_MS = 2000         # temps pour que la jauge retombe de 1.0 a 0
+FALL_DURATION_MS = 450       # duree de la chute quand il est neutralise
 
 BODY_COLOR = (150, 35, 35)
 BODY_ALERT_COLOR = (230, 60, 30)
+BODY_DOWN_COLOR = (95, 40, 40)
 CONE_COLOR = (255, 230, 80)
 CONE_ALERT_COLOR = (255, 90, 40)
 
@@ -56,6 +64,8 @@ class Guard:
         self.detection = 0.0         # 0.0 = rien vu, 1.0 = joueur repere
         self.pause_timer = 0
         self._was_suspicious = False
+        self.down = False            # True = neutralise (au sol)
+        self.fall_timer = 0
 
     # ------------------------------------------------------------------
     # Geometrie
@@ -66,19 +76,41 @@ class Guard:
 
     def vision_rect(self, range_mult=1.0):
         """Rectangle devant le garde dans lequel il voit le joueur.
-        range_mult < 1 raccourcit la portee (joueur accroupi, dans l'ombre...)."""
+        range_mult < 1 raccourcit la portee (joueur accroupi, dans l'ombre...).
+        Un garde neutralise ne voit rien (rectangle vide)."""
+        if self.down:
+            return pygame.Rect(0, 0, 0, 0)
         length = int(self.vision_range * range_mult)
         body = self.rect
         if self.facing_right:
             return pygame.Rect(body.right, body.top, length, body.height)
         return pygame.Rect(body.left - length, body.top, length, body.height)
 
+    def facing_away_from(self, px):
+        """True si le point px (coordonnee X monde) est DANS LE DOS du garde."""
+        center = self.rect.centerx
+        return (self.facing_right and px < center) or (not self.facing_right and px > center)
+
     # ------------------------------------------------------------------
     # Logique
     # ------------------------------------------------------------------
+    def take_down(self):
+        """Neutralise le garde (attaque dans le dos ou balle). Retourne False s'il est deja a terre."""
+        if self.down:
+            return False
+        self.down = True
+        self.fall_timer = 0
+        self.detection = 0.0
+        self._was_suspicious = False
+        return True
+
     def update(self, dt_ms, sees_player, player_center_x):
         """Met a jour le garde. Retourne True UNIQUEMENT a l'instant ou il
         commence a remarquer le joueur (pour jouer un son d'alerte une fois)."""
+        if self.down:
+            self.fall_timer += dt_ms
+            return False
+
         just_noticed = False
 
         if sees_player:
@@ -123,6 +155,9 @@ class Guard:
     # ------------------------------------------------------------------
     def draw(self, surface, camera_x, range_mult=1.0, font=None):
         body = self.rect.move(-camera_x, 0)
+        if self.down:
+            self._draw_down(surface, body)
+            return
         self._draw_vision_cone(surface, body, range_mult)
         self.draw_body(surface, body)
         self._draw_detection_bar(surface, body, font)
@@ -135,8 +170,26 @@ class Guard:
         eye_x = body.right - 14 if self.facing_right else body.left + 6
         pygame.draw.rect(surface, (255, 255, 255), (eye_x, body.top + 20, 8, 8))
 
+    def _draw_down(self, surface, body):
+        """PLACEHOLDER de la chute : le corps pivote de 90 degres autour des pieds,
+        vers l'avant. A remplacer par une animation 'fall' quand elle existera."""
+        t = min(1.0, self.fall_timer / FALL_DURATION_MS)
+        angle = 90 * t
+        body_surface = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+        body_surface.fill(BODY_DOWN_COLOR)
+        direction = 1 if self.facing_right else -1
+        rotated = pygame.transform.rotate(body_surface, -angle * direction)
+        theta = math.radians(angle)
+        center_x = body.centerx + direction * (self.height / 2) * math.sin(theta)
+        center_y = body.bottom - (self.height / 2) * math.cos(theta)
+        rotated_rect = rotated.get_rect(center=(center_x, center_y))
+        rotated_rect.bottom = min(rotated_rect.bottom, body.bottom)  # ne jamais passer sous le sol
+        surface.blit(rotated, rotated_rect)
+
     def _draw_vision_cone(self, surface, body, range_mult):
         length = int(self.vision_range * range_mult)
+        if length <= 0:
+            return
         eye_y = body.top + 24
         if self.facing_right:
             start_x = body.right

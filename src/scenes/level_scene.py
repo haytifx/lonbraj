@@ -6,18 +6,24 @@ Niveau jouable avec :
   images ne sont pas encore pretes)
 - Le joueur (voir entities/player.py), avec fallback rectangle si le
   spritesheet n'est pas encore pret
-- Zones d'ombre simples (mecanique "Lonbraj") : le joueur devient plus
-  transparent et un indicateur "KACHE" apparait quand il est dedans
+- Zones d'ombre (mecanique "Lonbraj") : le joueur devient plus transparent
+  et un indicateur "KACHE" apparait quand il est dedans
+- Obstacles (Cover, voir entities/cover.py) : accroupi devant, les gardes
+  ne voient plus James
 - Gardes qui patrouillent (voir entities/guard.py) : si un garde voit le
   joueur assez longtemps, le joueur est repere et le niveau recommence
+- Attaque par surprise : dans le dos d'un garde qui ne se doute de rien,
+  F fait tomber le garde
+- 9mm silencieux : G sort/range l'arme, X tire (debout, immobile). La balle
+  neutralise le garde touche
 - Zone de sortie (ExitZone) : y entrer termine le niveau (on_finish)
 
 REGLES DE VISION (les gardes voient seulement DEVANT eux) :
-- Joueur normal               : portee complete
-- Joueur accroupi (sneak/BAS)  : portee x SNEAK_VISION_MULT
-- Joueur dans une zone d'ombre : portee x SHADOW_VISION_MULT (il faut
-  presque toucher le garde pour etre vu)
-- Les deux ensemble            : on garde la plus petite portee
+- Joueur normal                 : portee complete
+- Joueur accroupi (sneak/BAS)    : portee x SNEAK_VISION_MULT
+- Joueur dans une zone d'ombre   : portee x SHADOW_VISION_MULT
+- Joueur accroupi DERRIERE un obstacle : invisible (portee 0)
+- Plusieurs conditions ensemble  : on garde la plus petite portee
 
 NOMS DE DOSSIER ATTENDUS POUR LE FOND (parallax) :
     assets/backgrounds/<level_folder>/layer1_sky.png   (fond lointain)
@@ -28,7 +34,7 @@ Si un de ces fichiers manque, un degrade de couleur uni le remplace --
 le niveau reste jouable et testable pendant que les vrais decors sont
 en cours de creation.
 
-COMPATIBILITE : les parametres guards et exit_zone sont optionnels. Sans
+COMPATIBILITE : guards, exit_zone et covers sont optionnels. Sans
 exit_zone, une sortie par defaut est placee a la fin du niveau.
 """
 
@@ -36,6 +42,7 @@ import pygame
 import os
 import settings
 from src.entities.player import Player
+from src.entities.projectile import Bullet
 from src.audio.audio_manager import audio
 
 GROUND_Y = 550          # position Y du sol (ou les pieds du joueur touchent)
@@ -58,7 +65,14 @@ FALLBACK_BOTTOM_COLOR = (55, 60, 75)
 SNEAK_VISION_MULT = 0.5      # accroupi : le garde voit 2x moins loin
 SHADOW_VISION_MULT = 0.2     # dans l'ombre : le garde voit 5x moins loin
 PLAYER_HITBOX_WIDTH = 50     # largeur utile du joueur (le sprite a de la marge autour)
-CAUGHT_DURATION_MS = 1500    # duree de l'ecran "OU TRAPE!" avant de recommencer
+CAUGHT_DURATION_MS = 2000    # duree de l'ecran "OU TRAPE!" (animation de mort comprise)
+
+# --- Attaque par surprise ---
+TAKEDOWN_RANGE = 85          # distance max (centre a centre) pour attraper un garde
+TAKEDOWN_MAX_DETECTION = 0.5 # au-dessus, le garde se doute de quelque chose : impossible
+
+# Touche de test : H = James recoit un coup (pour voir les animations hurt/dead)
+DEBUG_HIT_KEY = True
 
 STATE_PLAYING = "playing"
 STATE_CAUGHT = "caught"
@@ -79,7 +93,7 @@ class ExitZone:
 
 class LevelScene:
     def __init__(self, level_folder, chapter_id, on_finish, shadow_zones=None,
-                 guards=None, exit_zone=None):
+                 guards=None, exit_zone=None, covers=None):
         self.level_folder = level_folder
         self.chapter_id = chapter_id
         self.on_finish = on_finish
@@ -91,7 +105,11 @@ class LevelScene:
         self.layers = self._load_layers()
         self.shadow_zones = shadow_zones or []
         self.guards = guards or []
+        self.covers = covers or []
         self.exit_zone = exit_zone or ExitZone(LEVEL_WIDTH - 220, GROUND_Y - 200, 180, 200)
+
+        self.bullets = []
+        self.takedown_target = None
 
         self.hint_font = pygame.font.Font(None, 28)
         self.status_font = pygame.font.Font(None, 32)
@@ -114,21 +132,57 @@ class LevelScene:
         return layers
 
     # ------------------------------------------------------------------
-    # Evenements / logique
+    # Evenements
     # ------------------------------------------------------------------
     def handle_event(self, event):
         if self.state != STATE_PLAYING:
             return
-        if event.type == pygame.KEYDOWN:
-            if event.key in (pygame.K_LCTRL, pygame.K_f):
-                self.player.trigger_attack()
-                audio.play_sfx("punch.wav")
+        if event.type != pygame.KEYDOWN:
+            return
 
+        if event.key in (pygame.K_LCTRL, pygame.K_f):
+            self._action_melee()
+        elif event.key == pygame.K_g:
+            self.player.toggle_pistol()
+        elif event.key == pygame.K_x:
+            self.player.trigger_shoot()
+        elif event.key == pygame.K_h and DEBUG_HIT_KEY:
+            self.player.take_hit()
+
+    def _action_melee(self):
+        """F : attaque par surprise si un garde est a portee dans son dos, sinon coup de poing."""
+        target = self._find_takedown_target()
+        if target:
+            self.player.facing_right = target.rect.centerx >= self._player_hitbox().centerx
+            if self.player.trigger_takedown():
+                self.takedown_target = target
+                audio.play_sfx("punch.wav")
+        elif self.player.trigger_attack():
+            audio.play_sfx("punch.wav")
+
+    def _find_takedown_target(self):
+        """Garde que James peut neutraliser maintenant (ou None)."""
+        if not self.player.can_act():
+            return None
+        center = self._player_hitbox().centerx
+        for guard in self.guards:
+            if guard.down or guard.detection >= TAKEDOWN_MAX_DETECTION:
+                continue
+            if abs(guard.rect.centerx - center) > TAKEDOWN_RANGE:
+                continue
+            if guard.facing_away_from(center):
+                return guard
+        return None
+
+    # ------------------------------------------------------------------
+    # Logique
+    # ------------------------------------------------------------------
     def update(self, dt):
         if self.state == STATE_FINISHED:
             return
 
         if self.state == STATE_CAUGHT:
+            self.player.update(dt)   # laisse l'animation de mort se jouer
             self.caught_timer += dt
             if self.caught_timer >= CAUGHT_DURATION_MS:
                 self._restart_level()
@@ -145,11 +199,41 @@ class LevelScene:
         target_camera_x = self.player.x - settings.SCREEN_WIDTH // 2
         self.camera_x = max(0, min(target_camera_x, LEVEL_WIDTH - settings.SCREEN_WIDTH))
 
+        self._process_player_events()
+        self._update_bullets(dt)
         self._update_guards(dt)
+
+        if self.player.dead and self.state == STATE_PLAYING:
+            self._player_caught()      # tue par autre chose que la detection (ex: touche de test H)
         if self.state != STATE_PLAYING:
             return
 
         self._check_exit()
+
+    def _process_player_events(self):
+        """Evenements declenches par l'animation de James : la balle part, le garde tombe."""
+        if self.player.consume_shot():
+            x, y = self.player.muzzle_pos()
+            self.bullets.append(Bullet(x, y, self.player.facing_right))
+            audio.play_sfx("pistol_silenced.wav")
+
+        if self.player.consume_takedown_hit():
+            target, self.takedown_target = self.takedown_target, None
+            if target and target.take_down():
+                audio.play_sfx("takedown.wav")
+
+    def _update_bullets(self, dt):
+        for bullet in self.bullets:
+            bullet.update(dt)
+            if bullet.x < 0 or bullet.x > LEVEL_WIDTH:
+                bullet.alive = False
+                continue
+            for guard in self.guards:
+                if not guard.down and bullet.rect.colliderect(guard.rect):
+                    guard.take_down()
+                    bullet.alive = False
+                    break
+        self.bullets = [b for b in self.bullets if b.alive]
 
     def _player_hitbox(self):
         """Zone utile du joueur (plus etroite que le sprite, qui a de la marge)."""
@@ -158,7 +242,15 @@ class LevelScene:
         return pygame.Rect(left, self.player.y - self.player.height,
                            PLAYER_HITBOX_WIDTH, self.player.height)
 
+    def _is_hidden_by_cover(self):
+        if self.player.state not in ("sneak", "crouch"):
+            return False
+        center = self._player_hitbox().centerx
+        return any(cover.hides(center) for cover in self.covers)
+
     def _vision_multiplier(self):
+        if self._is_hidden_by_cover():
+            return 0.0
         mult = 1.0
         if self.player.state in ("sneak", "crouch"):
             mult = min(mult, SNEAK_VISION_MULT)
@@ -182,19 +274,15 @@ class LevelScene:
     def _player_caught(self):
         self.state = STATE_CAUGHT
         self.caught_timer = 0
-        self.player.take_hit()
+        self.player.die()
         audio.play_sfx("hurt.wav")
 
     def _restart_level(self):
-        self.player.x = PLAYER_START_X
-        self.player.y = GROUND_Y
-        self.player.vel_x = 0
-        self.player.vel_y = 0
-        self.player.on_ground = True
-        self.player.attack_lock = False
-        self.player.state = "idle"
+        self.player.reset(PLAYER_START_X, GROUND_Y)
         for guard in self.guards:
             guard.reset()
+        self.bullets = []
+        self.takedown_target = None
         self.camera_x = 0
         self.caught_timer = 0
         self.state = STATE_PLAYING
@@ -223,6 +311,10 @@ class LevelScene:
             pygame.draw.line(surface, color, (0, y), (settings.SCREEN_WIDTH, y))
 
     def _draw_layers(self, surface):
+        # Les images de fond (560 px de haut) ne couvrent pas tout l'ecran (720 px) :
+        # on efface d'abord, sinon la bande du bas garde les images precedentes
+        # (et le texte de l'interface s'y accumule).
+        surface.fill(settings.COLOR_BLACK)
         any_real_layer = any(layer["image"] is not None for layer in self.layers.values())
         if not any_real_layer:
             self._draw_fallback_gradient(surface)
@@ -255,19 +347,21 @@ class LevelScene:
         label = self.status_font.render("SOTI", True, (60, 220, 120))
         surface.blit(label, (exit_rect.centerx - label.get_width() // 2, exit_rect.top - 30))
 
-    def _draw_player(self, surface, in_shadow):
+    def _draw_player(self, surface, concealed):
         frame, rect, _ = self.player.get_render_info()
         render_rect = rect.move(-self.camera_x, 0)
 
         if frame:
-            if in_shadow:
+            if concealed:
                 frame = frame.copy()
                 frame.set_alpha(130)
             surface.blit(frame, render_rect.topleft)
         else:
             # Fallback : rectangle temporaire tant que le spritesheet n'est pas pret
-            color = (150, 150, 150) if not in_shadow else (80, 80, 80)
+            color = (150, 150, 150) if not concealed else (80, 80, 80)
             pygame.draw.rect(surface, color, render_rect)
+
+        self.player.draw_props(surface, self.camera_x)
 
     def _draw_caught_overlay(self, surface):
         overlay = pygame.Surface((settings.SCREEN_WIDTH, settings.SCREEN_HEIGHT), pygame.SRCALPHA)
@@ -286,15 +380,33 @@ class LevelScene:
         for guard in self.guards:
             guard.draw(surface, self.camera_x, mult, self.alert_font)
 
-        in_shadow = self._is_in_shadow()
-        self._draw_player(surface, in_shadow)
+        hidden = self._is_hidden_by_cover()
+        concealed = self._is_in_shadow() or hidden
+        self._draw_player(surface, concealed)
 
-        if in_shadow:
+        for bullet in self.bullets:
+            bullet.draw(surface, self.camera_x)
+
+        # Les obstacles sont dessines APRES James : il apparait derriere
+        for cover in self.covers:
+            cover.draw(surface, self.camera_x)
+
+        # Invite d'attaque par surprise au-dessus du garde qu'on peut attraper
+        target = self._find_takedown_target() if self.state == STATE_PLAYING else None
+        if target:
+            prompt = self.status_font.render("[F]", True, (255, 220, 60))
+            body = target.rect.move(-self.camera_x, 0)
+            surface.blit(prompt, (body.centerx - prompt.get_width() // 2, body.top - 34))
+
+        if concealed:
             hidden_text = self.status_font.render("KACHE", True, (200, 200, 60))
             surface.blit(hidden_text, (20, 20))
+        if self.player.armed:
+            armed_text = self.status_font.render("9mm", True, (220, 220, 220))
+            surface.blit(armed_text, (20, 50))
 
         hint = self.hint_font.render(
-            "FLECHES: mache | BA+FLECH: sneak | ESPAS: sote | CTRL/F: atake",
+            "FLECHES: mache | BA: akoupi | ESPAS: sote | F: atake | G: zam | X: tire",
             True, settings.COLOR_WHITE
         )
         surface.blit(hint, (20, settings.SCREEN_HEIGHT - 30))
