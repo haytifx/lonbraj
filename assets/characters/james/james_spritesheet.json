@@ -2,25 +2,43 @@
   "frame_width": 128,
   "frame_height": 128,
   "animations": {
-    "attack": {
+    "walk": {
       "row": 0,
-      "frame_count": 3
+      "frame_count": 8,
+      "fps": 12,
+      "loop": true,
+      "stride": 96
     },
-    "dead": {
+    "sneak": {
       "row": 1,
-      "frame_count": 4
-    },
-    "hurt": {
-      "row": 2,
-      "frame_count": 4
+      "frame_count": 8,
+      "fps": 10,
+      "loop": true,
+      "stride": 72
     },
     "jump": {
-      "row": 3,
-      "frame_count": 4
+      "row": 2,
+      "frame_count": 4,
+      "fps": 10,
+      "loop": false
     },
-    "walk": {
+    "attack": {
+      "row": 3,
+      "frame_count": 3,
+      "fps": 12,
+      "loop": false
+    },
+    "hurt": {
       "row": 4,
-      "frame_count": 8
+      "frame_count": 4,
+      "fps": 12,
+      "loop": false
+    },
+    "dead": {
+      "row": 5,
+      "frame_count": 6,
+      "fps": 10,
+      "loop": false
     }
   }
 }

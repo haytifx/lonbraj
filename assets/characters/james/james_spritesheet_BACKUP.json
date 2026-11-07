@@ -1,0 +1,26 @@
+{
+  "frame_width": 128,
+  "frame_height": 128,
+  "animations": {
+    "attack": {
+      "row": 0,
+      "frame_count": 3
+    },
+    "dead": {
+      "row": 1,
+      "frame_count": 4
+    },
+    "hurt": {
+      "row": 2,
+      "frame_count": 4
+    },
+    "jump": {
+      "row": 3,
+      "frame_count": 4
+    },
+    "walk": {
+      "row": 4,
+      "frame_count": 8
+    }
+  }
+}
